@@ -335,9 +335,23 @@ static int net80211_netdev_transmit ( struct net_device *netdev,
 		/* Free the non-encrypted iob */
 		netdev_tx_complete ( netdev, iobuf );
 
-		/* Transmit the encrypted iob; the Protected flag is
-		   set, so we won't recurse into here again */
-		netdev_tx ( netdev, niob );
+		/* Transmit the encrypted iob ourselves.  We are called
+		   from within netdev_tx(), which refuses re-entry
+		   (-EBUSY) since commit 78749542fc, so queue it, map it
+		   and hand it to the driver here, as netdev_tx() would.
+		   Errors are completed here: netdev_tx() must not see
+		   them, as it would complete the freed cleartext iob. */
+		list_add_tail ( &niob->list, &netdev->tx_queue );
+		if ( netdev->dma &&
+		     ( rc = iob_map_tx ( niob, netdev->dma ) ) != 0 ) {
+			netdev_tx_complete_err ( netdev, niob, rc );
+			return 0;
+		}
+		rc = -ENOSYS;
+		if ( dev->op->transmit )
+			rc = dev->op->transmit ( dev, niob );
+		if ( rc != 0 )
+			netdev_tx_complete_err ( netdev, niob, rc );
 
 		/* Don't transmit the freed packet */
 		return 0;
