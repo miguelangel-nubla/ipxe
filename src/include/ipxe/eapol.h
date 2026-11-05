@@ -35,7 +35,7 @@ struct eapol_header {
 #define EAPOL_TYPE_START 1
 
 /** EAPoL key */
-#define EAPOL_TYPE_KEY 5
+#define EAPOL_TYPE_KEY 3
 
 /** An EAPoL supplicant */
 struct eapol_supplicant {
